@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mongo-db-app-config
+  namespace: mongo-db-app
+data:
+  MONGO_DB: "appdb"

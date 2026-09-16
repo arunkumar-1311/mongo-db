@@ -11,6 +11,7 @@ func Router() {
 
 	v1 := r.Group("v1/api")
 	v1.POST("/user/create", handlers.CreateUsers)
+	v1.POST("/user/get/:id", handlers.GetUser)
 
 	r.Run(":8000")
 }

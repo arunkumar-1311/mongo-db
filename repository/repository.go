@@ -8,6 +8,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 const (
@@ -26,6 +27,7 @@ type Repository interface {
 	CreateDepartment(ctx context.Context, department models.Department) (primitive.ObjectID, error)
 	CreateRole(ctx context.Context, role models.Role) (primitive.ObjectID, error)
 	CreateOrders(ctx context.Context, orders []models.Order) ([]primitive.ObjectID, error)
+	GetUser(ctx context.Context, id primitive.ObjectID) (models.User, error)
 	DeleteDepartment(ctx context.Context, id primitive.ObjectID) error
 	DeleteRole(ctx context.Context, id primitive.ObjectID) error
 	DeleteOrders(ctx context.Context, ids []primitive.ObjectID) error
@@ -80,6 +82,56 @@ func (r Repo) CreateUser(ctx context.Context, user models.User) (primitive.Objec
 		return primitive.NilObjectID, err
 	}
 	return user.Id, nil
+}
+
+func (r Repo) GetUser(ctx context.Context, id primitive.ObjectID) (models.User, error) {
+
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{"_id": id}}},
+		{{Key: "$lookup", Value: bson.M{
+			"from":         departmentsCollection,
+			"localField":   "department_id",
+			"foreignField": "_id",
+			"as":           "department",
+		}}},
+		{{Key: "$unwind", Value: bson.M{
+			"path":                       "$department",
+			"preserveNullAndEmptyArrays": true,
+		}}},
+		{{Key: "$lookup", Value: bson.M{
+			"from":         rolesCollection,
+			"localField":   "role_id",
+			"foreignField": "_id",
+			"as":           "role",
+		}}},
+		{{Key: "$unwind", Value: bson.M{
+			"path":                       "$role",
+			"preserveNullAndEmptyArrays": true,
+		}}},
+		{{Key: "$lookup", Value: bson.M{
+			"from":         ordersCollection,
+			"localField":   "order_ids",
+			"foreignField": "_id",
+			"as":           "orders",
+		}}},
+	}
+
+	cursor, err := r.DB.Db.Collection(usersCollection).Aggregate(ctx, pipeline)
+	if err != nil {
+		return models.User{}, err
+	}
+
+	var results []models.User
+	if err := cursor.All(ctx, results); err != nil {
+		return models.User{}, err
+	}
+
+	if len(results) == 0 {
+		return models.User{}, err
+	}
+
+	return results[0], nil
+
 }
 
 func (r Repo) DeleteDepartment(ctx context.Context, id primitive.ObjectID) error {

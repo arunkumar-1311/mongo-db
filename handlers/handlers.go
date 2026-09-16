@@ -5,6 +5,7 @@ import (
 
 	"github.com/arunkumar-1311/mongo-db/models"
 	"github.com/arunkumar-1311/mongo-db/service"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"github.com/gin-gonic/gin"
 )
@@ -17,6 +18,23 @@ func CreateUsers(c *gin.Context) {
 	}
 
 	result, err := service.NewUserService().CreateUsers(c.Request.Context(), req)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"message": "unable to create user: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, result)
+}
+
+func GetUser(c *gin.Context) {
+	id := c.Param("id")
+	objID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "invalid id: " + err.Error()})
+		return
+	}
+
+	result, err := service.NewUserService().GetUser(c.Request.Context(), objID)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"message": "unable to create user: " + err.Error()})
 		return

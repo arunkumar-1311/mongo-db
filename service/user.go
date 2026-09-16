@@ -6,10 +6,12 @@ import (
 
 	"github.com/arunkumar-1311/mongo-db/models"
 	"github.com/arunkumar-1311/mongo-db/repository"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type Service interface {
 	CreateUsers(ctx context.Context, req models.User) (models.User, error)
+	GetUser(ctx context.Context, objID primitive.ObjectID) (models.User, error)
 }
 
 type userService struct {
@@ -61,4 +63,12 @@ func (s userService) CreateUsers(ctx context.Context, req models.User) (models.U
 	req.RoleId = roleId
 	req.OrderIds = orderIds
 	return req, nil
+}
+
+func (s userService) GetUser(ctx context.Context, objID primitive.ObjectID) (models.User, error) {
+	result, err := s.repo.GetUser(ctx, objID)
+	if err != nil {
+		return models.User{}, err
+	}
+	return result, nil
 }
