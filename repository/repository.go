@@ -28,6 +28,7 @@ type Repository interface {
 	CreateRole(ctx context.Context, role models.Role) (primitive.ObjectID, error)
 	CreateOrders(ctx context.Context, orders []models.Order) ([]primitive.ObjectID, error)
 	GetUser(ctx context.Context, id primitive.ObjectID) (models.User, error)
+	GetUserByEmail(ctx context.Context, email string) (models.User, error)
 	DeleteDepartment(ctx context.Context, id primitive.ObjectID) error
 	DeleteRole(ctx context.Context, id primitive.ObjectID) error
 	DeleteOrders(ctx context.Context, ids []primitive.ObjectID) error
@@ -120,9 +121,10 @@ func (r Repo) GetUser(ctx context.Context, id primitive.ObjectID) (models.User, 
 	if err != nil {
 		return models.User{}, err
 	}
+	defer cursor.Close(ctx)
 
 	var results []models.User
-	if err := cursor.All(ctx, results); err != nil {
+	if err := cursor.All(ctx, &results); err != nil {
 		return models.User{}, err
 	}
 
@@ -131,7 +133,15 @@ func (r Repo) GetUser(ctx context.Context, id primitive.ObjectID) (models.User, 
 	}
 
 	return results[0], nil
+}
 
+func (r Repo) GetUserByEmail(ctx context.Context, email string) (models.User, error) {
+	var result models.User
+	err := r.DB.Db.Collection(usersCollection).FindOne(ctx, bson.M{"email": email}).Decode(&result)
+	if err != nil {
+		return models.User{}, err
+	}
+	return result, nil
 }
 
 func (r Repo) DeleteDepartment(ctx context.Context, id primitive.ObjectID) error {

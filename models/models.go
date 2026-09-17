@@ -5,6 +5,9 @@ import "go.mongodb.org/mongo-driver/bson/primitive"
 type User struct {
 	Id           primitive.ObjectID `json:"id" bson:"_id"`
 	Name         string             `json:"name" binding:"required"`
+	Email        string             `json:"email" binding:"required,email" bson:"email"`
+	Password     string             `json:"password,omitempty" binding:"required,min=8" bson:"-"`
+	PasswordHash string             `json:"-" bson:"password_hash"`
 	Salary       int64              `json:"salary" binding:"required"`
 	Address      `json:"address"`
 	Department   Department           `json:"department" binding:"required"`
@@ -13,6 +16,17 @@ type User struct {
 	RoleId       primitive.ObjectID   `json:"-" bson:"role_id"`
 	Orders       []Order              `json:"orders"`
 	OrderIds     []primitive.ObjectID `json:"-" bson:"order_ids"`
+}
+
+// LoginRequest is the payload for the login endpoint.
+type LoginRequest struct {
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required"`
+}
+
+// LoginResponse is returned on successful login.
+type LoginResponse struct {
+	Token string `json:"token"`
 }
 
 type Address struct {

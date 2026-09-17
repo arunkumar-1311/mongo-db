@@ -26,6 +26,22 @@ func CreateUsers(c *gin.Context) {
 	c.JSON(http.StatusCreated, result)
 }
 
+func Login(c *gin.Context) {
+	var req models.LoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "unable to decode the request body: " + err.Error()})
+		return
+	}
+
+	result, err := service.NewUserService().Login(c.Request.Context(), req)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, result)
+}
+
 func GetUser(c *gin.Context) {
 	id := c.Param("id")
 	objID, err := primitive.ObjectIDFromHex(id)
@@ -40,5 +56,5 @@ func GetUser(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, result)
+	c.JSON(http.StatusOK, result)
 }

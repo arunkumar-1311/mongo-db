@@ -39,6 +39,11 @@ spec:
                   key: MONGO_DB
             - name: MONGO_URI
               value: "mongodb://$(MONGO_USERNAME):$(MONGO_PASSWORD)@mongo:27017"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: JWT_SECRET
           resources:
             requests:
               cpu: 100m

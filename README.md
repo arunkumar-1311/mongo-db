@@ -6,7 +6,9 @@ A Gin + MongoDB REST API for managing users, deployable to Kubernetes (minikube)
 
 - `main.go` — app entrypoint, connects to MongoDB and starts the router
 - `dbconnection/` — MongoDB connection setup (`MONGO_URI`, `MONGO_DB` env vars)
-- `models/` — data models (`User`, `Address`, `Department`, `Role`, `Order`)
+- `models/` — data models (`User`, `Address`, `Department`, `Role`, `Order`, `LoginRequest`/`LoginResponse`)
+- `auth/` — password hashing (bcrypt) and JWT generation/parsing (`JWT_SECRET` env var)
+- `middleware/` — Gin middleware: `Authenticate` (JWT check), `RequireRole` (role-based authorization)
 - `repository/` — MongoDB data access layer
 - `service/` — business logic layer
 - `handlers/` — HTTP handlers (Gin)
@@ -14,19 +16,31 @@ A Gin + MongoDB REST API for managing users, deployable to Kubernetes (minikube)
 - `k8s/` — Kubernetes manifests
 - `Dockerfile` — multi-stage build for the Go app
 
+## Authentication & Authorization
+
+- **Signup**: `POST /v1/api/user/create` — public. Creates a user with a bcrypt-hashed password (`password` in the request is never stored in plaintext).
+- **Login**: `POST /v1/api/auth/login` — public. Verifies email/password and returns a signed JWT (24h expiry).
+- **Protected routes**: e.g. `POST /v1/api/user/get/:id` requires `Authorization: Bearer <token>`. Enforced by `middleware.Authenticate()`.
+- **Role-based authorization**: `middleware.RequireRole("admin", ...)` can be added to any route group to additionally restrict access by the caller's `role.level` (taken from the JWT claims). Apply it after `Authenticate()`.
+
+Set `JWT_SECRET` to a long random value in any real environment — it defaults to a dev-only value if unset.
+
 ## API Endpoints
 
 Base path: `/v1/api`
 
-| Method | Path          | Description   |
-|--------|---------------|---------------|
-| POST   | `/user/create`| Create a user |
-| POST   | `/user/get`   | Get a user    |
+| Method | Path             | Auth required | Description        |
+|--------|------------------|----------------|---------------------|
+| POST   | `/user/create`   | No             | Create a user (signup) |
+| POST   | `/auth/login`    | No             | Login, returns JWT  |
+| POST   | `/user/get/:id`  | Yes (Bearer JWT) | Get a user by id  |
 
-Example create request body:
+Example signup request body:
 ```json
 {
   "name": "John Doe",
+  "email": "john@example.com",
+  "password": "SuperSecret123",
   "salary": 50000,
   "address": {
     "id": 1,
@@ -45,6 +59,24 @@ Example create request body:
 }
 ```
 
+Example login request body:
+```json
+{
+  "email": "john@example.com",
+  "password": "SuperSecret123"
+}
+```
+Response:
+```json
+{ "token": "<jwt>" }
+```
+
+Call a protected route:
+```bash
+curl -X POST http://localhost:8000/v1/api/user/get/<id> \
+  -H "Authorization: Bearer <jwt>"
+```
+
 ## Local Development (without Kubernetes)
 
 Requires a local MongoDB running on `localhost:27017` (or set env vars below).
@@ -53,6 +85,7 @@ Requires a local MongoDB running on `localhost:27017` (or set env vars below).
 # optional overrides, defaults shown
 export MONGO_URI="mongodb://localhost:27017"
 export MONGO_DB="local"
+export JWT_SECRET="dev-secret-change-me"
 
 go run main.go
 ```
@@ -97,6 +130,7 @@ kubectl apply -f k8s/namespace.yaml
 kubectl apply -f k8s/mongo-secret.yaml
 kubectl apply -f k8s/mongo-statefulset.yaml
 kubectl apply -f k8s/app-configmap.yaml
+kubectl apply -f k8s/app-secret.yaml
 kubectl apply -f k8s/app-deployment.yaml
 ```
 
@@ -145,8 +179,9 @@ kubectl -n mongo-db-app port-forward svc/mongo-db-app 8000:80
 
 Then call:
 ```
-POST http://localhost:8000/v1/api/user/create
-POST http://localhost:8000/v1/api/user/get
+POST http://localhost:8000/v1/api/user/create      (signup, no auth)
+POST http://localhost:8000/v1/api/auth/login        (login, no auth)
+POST http://localhost:8000/v1/api/user/get/:id      (requires Authorization: Bearer <token>)
 ```
 
 ### 6. Restarting
@@ -222,7 +257,7 @@ use appdb
 db.users.find()
 ```
 
-(Default credentials are defined in `k8s/mongo-secret.yaml` — change `MONGO_INITDB_ROOT_PASSWORD` there before any real/shared use.)
+(Default credentials are defined in `k8s/mongo-secret.yaml` — change `MONGO_INITDB_ROOT_PASSWORD` there before any real/shared use. Likewise change `JWT_SECRET` in `k8s/app-secret.yaml`.)
 
 ## Kubernetes Dashboard (UI)
 

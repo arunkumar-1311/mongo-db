@@ -2,16 +2,21 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/arunkumar-1311/mongo-db/auth"
 	"github.com/arunkumar-1311/mongo-db/models"
 	"github.com/arunkumar-1311/mongo-db/repository"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+var ErrInvalidCredentials = errors.New("invalid email or password")
+
 type Service interface {
 	CreateUsers(ctx context.Context, req models.User) (models.User, error)
 	GetUser(ctx context.Context, objID primitive.ObjectID) (models.User, error)
+	Login(ctx context.Context, req models.LoginRequest) (models.LoginResponse, error)
 }
 
 type userService struct {
@@ -28,6 +33,13 @@ func NewUserService() Service {
 // the already-created related documents are rolled back so no orphaned
 // records are left behind.
 func (s userService) CreateUsers(ctx context.Context, req models.User) (models.User, error) {
+	passwordHash, err := auth.HashPassword(req.Password)
+	if err != nil {
+		return models.User{}, fmt.Errorf("unable to hash password: %w", err)
+	}
+	req.PasswordHash = passwordHash
+	req.Password = ""
+
 	departmentId, err := s.repo.CreateDepartment(ctx, req.Department)
 	if err != nil {
 		return models.User{}, fmt.Errorf("unable to create department: %w", err)
@@ -71,4 +83,22 @@ func (s userService) GetUser(ctx context.Context, objID primitive.ObjectID) (mod
 		return models.User{}, err
 	}
 	return result, nil
+}
+
+func (s userService) Login(ctx context.Context, req models.LoginRequest) (models.LoginResponse, error) {
+	user, err := s.repo.GetUserByEmail(ctx, req.Email)
+	if err != nil {
+		return models.LoginResponse{}, ErrInvalidCredentials
+	}
+
+	if err := auth.ComparePassword(user.PasswordHash, req.Password); err != nil {
+		return models.LoginResponse{}, ErrInvalidCredentials
+	}
+
+	token, err := auth.GenerateToken(user.Id, user.Email, user.Role.Level)
+	if err != nil {
+		return models.LoginResponse{}, fmt.Errorf("unable to generate token: %w", err)
+	}
+
+	return models.LoginResponse{Token: token}, nil
 }
